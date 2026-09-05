@@ -7,6 +7,8 @@ sense and do, and sings with a voice synthesised from its own genome.*
 Two files. `cells.html` and `game.js`. No build step, no bundler, no
 dependencies beyond three.js from a CDN. Open the page and the culture starts.
 
+Live page here: [https://mrqzzz.github.io/cells/](https://mrqzzz.github.io/cells/)
+
 ---
 
 <img width="1813" height="1259" alt="Screenshot 2026-09-05 at 17 19 58" src="https://github.com/user-attachments/assets/323e9959-36f5-4b2a-8405-774c6e4b8f6c" />
