@@ -9,6 +9,20 @@ dependencies beyond three.js from a CDN. Open the page and the culture starts.
 
 ---
 
+<img width="1813" height="1259" alt="Screenshot 2026-09-05 at 17 19 58" src="https://github.com/user-attachments/assets/323e9959-36f5-4b2a-8405-774c6e4b8f6c" />
+
+<img width="1807" height="1260" alt="Screenshot 2026-09-05 at 17 21 17" src="https://github.com/user-attachments/assets/9078eae8-fbd1-4647-b303-edfc138f6d59" />
+
+<img width="1814" height="1262" alt="Screenshot 2026-09-05 at 17 22 28" src="https://github.com/user-attachments/assets/3229f853-6660-4476-8951-e9d5ccfc0072" />
+
+<img width="1811" height="1261" alt="Screenshot 2026-09-05 at 17 24 16" src="https://github.com/user-attachments/assets/5dd1a399-1d44-4fb4-9c82-46378e19f7a4" />
+
+<img width="1807" height="1256" alt="Screenshot 2026-09-05 at 17 26 06" src="https://github.com/user-attachments/assets/b2578f56-da18-4183-9188-1c098bd4dd60" />
+
+
+
+
+
 ## What you are looking at
 
 Three glass vessels — a wide **Tank** and two **Jars** — hold a population of
