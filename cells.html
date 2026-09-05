@@ -1,0 +1,855 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>CELLS — a vivarium of cellular creatures</title>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.169.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.169.0/examples/jsm/"
+  }
+}
+</script>
+
+<style>
+:root{
+  --bg:#070b10;
+  --panel:rgba(14,20,28,.82);
+  --panel-solid:#0e141c;
+  --line:rgba(120,160,190,.18);
+  --line-strong:rgba(120,190,220,.42);
+  --txt:#cfe2ee;
+  --txt-dim:#7f95a6;
+  --acc:#39d3c0;
+  --acc2:#7fb2ff;
+  --warn:#ff7a6e;
+  --font: ui-sans-serif, "SF Pro Text", -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--txt);
+  font-family:var(--font);font-size:12.5px;-webkit-font-smoothing:antialiased;}
+canvas#view{position:fixed;inset:0;display:block;touch-action:none;}
+
+/* ---------- generic panel chrome ---------- */
+.panel{
+  position:fixed;background:var(--panel);backdrop-filter:blur(14px) saturate(1.3);
+  border:1px solid var(--line);border-radius:12px;z-index:20;
+  box-shadow:0 12px 40px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.05);
+}
+.panel h2{
+  margin:0;padding:9px 12px;font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--txt-dim);border-bottom:1px solid var(--line);font-weight:600;
+  display:flex;align-items:center;gap:8px;
+}
+.panel h2 .badge{margin-left:auto;font-size:10px;color:var(--acc);letter-spacing:.06em}
+.scroll{overflow-y:auto;overscroll-behavior:contain}
+.scroll::-webkit-scrollbar{width:8px}
+.scroll::-webkit-scrollbar-thumb{background:rgba(120,180,210,.22);border-radius:4px}
+.scroll::-webkit-scrollbar-track{background:transparent}
+
+button, .btn{
+  font-family:var(--font);font-size:11.5px;color:var(--txt);
+  background:linear-gradient(180deg,rgba(120,180,220,.13),rgba(120,180,220,.05));
+  border:1px solid var(--line);border-radius:7px;padding:5px 9px;cursor:pointer;
+  transition:.13s;white-space:nowrap;
+}
+button:hover,.btn:hover{border-color:var(--line-strong);background:rgba(120,200,230,.18);color:#fff}
+button:active{transform:translateY(1px)}
+button.on{background:rgba(57,211,192,.22);border-color:var(--acc);color:#dffdf7}
+button.ghost{background:transparent}
+button.danger:hover{border-color:var(--warn);background:rgba(255,122,110,.18)}
+button:disabled{opacity:.35;cursor:not-allowed}
+select{font-family:var(--font);font-size:11.5px;color:var(--txt);cursor:pointer;
+  background:linear-gradient(180deg,rgba(120,180,220,.13),rgba(120,180,220,.05));
+  border:1px solid var(--line);border-radius:7px;padding:5px 6px}
+select:hover{border-color:var(--line-strong)}
+select:disabled{opacity:.38;cursor:default}
+select:disabled:hover{border-color:var(--line)}
+select option{background:var(--panel-solid);color:var(--txt)}
+
+/* ---------- top bar ---------- */
+#topbar{top:10px;left:10px;right:10px;height:42px;display:flex;align-items:center;gap:10px;padding:0 12px;}
+#topbar .logo{font-weight:700;letter-spacing:.26em;font-size:13px;color:#eafcff}
+#topbar .logo small{letter-spacing:.1em;color:var(--acc);font-size:9px;display:block;margin-top:-3px}
+#topbar .sep{width:1px;height:22px;background:var(--line)}
+#stats{font-family:var(--mono);font-size:10.5px;color:var(--txt-dim);line-height:1.35;white-space:pre}
+#topbar .spacer{flex:1}
+
+/* ---------- palette (left) ---------- */
+#palette{top:62px;left:10px;bottom:74px;width:246px;display:flex;flex-direction:column}
+#paletteBody{flex:1;padding:6px}
+.cat{margin-bottom:6px;border-radius:9px;overflow:hidden;border:1px solid rgba(120,160,190,.10)}
+.cat>.cat-h{
+  display:flex;align-items:center;gap:7px;padding:6px 8px;cursor:pointer;
+  background:rgba(255,255,255,.03);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;font-weight:600
+}
+.cat>.cat-h .dot{width:8px;height:8px;border-radius:50%;box-shadow:0 0 8px currentColor}
+.cat>.cat-h .arrow{margin-left:auto;color:var(--txt-dim);font-size:9px;transition:.15s}
+.cat.closed .arrow{transform:rotate(-90deg)}
+.cat.closed .cat-b{display:none}
+.cat-b{padding:4px}
+.cellbtn{
+  display:flex;align-items:center;gap:8px;width:100%;padding:5px 7px;margin:2px 0;
+  border-radius:7px;cursor:grab;border:1px solid transparent;background:transparent;text-align:left;
+}
+.cellbtn:hover{background:rgba(120,200,230,.12);border-color:var(--line)}
+.cellbtn .sw{width:15px;height:15px;border-radius:50%;flex:none;
+  box-shadow:inset -3px -3px 5px rgba(0,0,0,.55), inset 2px 2px 4px rgba(255,255,255,.35), 0 0 7px -1px currentColor}
+.cellbtn .nm{font-size:11.5px;line-height:1.15}
+.cellbtn .tag{margin-left:auto;font-family:var(--mono);font-size:9px;color:var(--txt-dim)}
+
+/* ---------- inspector (right) ---------- */
+#inspector{top:62px;right:10px;bottom:74px;width:288px;display:flex;flex-direction:column}
+#inspBody{flex:1;padding:10px}
+.sec{margin-bottom:13px}
+.sec>.t{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--txt-dim);margin-bottom:6px;
+  display:flex;align-items:center;gap:6px}
+.sec>.t::after{content:"";flex:1;height:1px;background:var(--line)}
+.row{display:flex;align-items:center;gap:6px;margin:3px 0}
+.row .k{color:var(--txt-dim);font-size:11px;min-width:96px}
+.row .v{font-family:var(--mono);font-size:11px;color:#e6f6ff}
+.bar{height:6px;border-radius:3px;background:rgba(255,255,255,.07);overflow:hidden;flex:1}
+.bar>i{display:block;height:100%;border-radius:3px;transition:width .2s}
+.btns{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}
+
+.gene{margin:5px 0}
+.gene .lab{display:flex;font-size:10.5px;color:var(--txt-dim);margin-bottom:1px}
+.gene .lab b{margin-left:auto;font-family:var(--mono);color:var(--acc2);font-weight:500}
+input[type=range]{-webkit-appearance:none;width:100%;height:14px;background:transparent;cursor:pointer;margin:0}
+input[type=range]::-webkit-slider-runnable-track{height:3px;border-radius:2px;background:rgba(140,190,220,.22)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:11px;height:11px;border-radius:50%;
+  background:var(--acc);margin-top:-4px;box-shadow:0 0 7px rgba(57,211,192,.8)}
+input[type=text]{width:100%;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;
+  background:rgba(0,0,0,.35);border:1px solid var(--line);border-radius:6px;color:var(--acc);padding:5px 7px}
+input[type=text]:focus{outline:none;border-color:var(--acc)}
+
+.chips{display:flex;flex-wrap:wrap;gap:4px}
+.chip{display:flex;align-items:center;gap:5px;padding:2px 7px;border-radius:20px;
+  background:rgba(255,255,255,.05);border:1px solid var(--line);font-size:10.5px;cursor:pointer}
+.chip:hover{border-color:var(--line-strong)}
+.chip .d{width:7px;height:7px;border-radius:50%}
+.chip b{font-family:var(--mono);font-weight:500;color:var(--txt-dim)}
+.hint{font-size:10.5px;color:var(--txt-dim);line-height:1.45}
+.hint b{color:var(--acc2);font-weight:600}
+
+/* ---------- vessel bar (bottom) ---------- */
+#vesselbar{left:10px;right:10px;bottom:10px;height:54px;display:flex;align-items:center;gap:7px;padding:0 10px;}
+/* il menu del cibo automatico sta in fila con i bottoni della barra: stessa
+   altezza e nessun allungamento, o si prenderebbe tutto lo spazio avanzato */
+#vesselbar select.autofeed{flex:0 0 auto;white-space:nowrap}
+.vchip{display:flex;flex-direction:column;justify-content:center;gap:2px;min-width:96px;padding:6px 11px;border-radius:9px;
+  border:1px solid var(--line);cursor:pointer;background:rgba(255,255,255,.03);transition:.14s}
+.vchip:hover{border-color:var(--line-strong)}
+.vchip.on{border-color:var(--acc);background:rgba(57,211,192,.14);box-shadow:0 0 18px -6px var(--acc)}
+.vchip .n{font-size:11.5px;font-weight:600}
+.vchip .s{font-family:var(--mono);font-size:9.5px;color:var(--txt-dim)}
+.vchip.drop{border-color:var(--acc2);background:rgba(127,178,255,.2)}
+
+/* ---------- misc ---------- */
+#tip{position:fixed;pointer-events:none;z-index:60;max-width:250px;padding:8px 10px;border-radius:9px;
+  background:rgba(8,13,19,.96);border:1px solid var(--line-strong);font-size:11px;line-height:1.45;
+  box-shadow:0 10px 30px rgba(0,0,0,.6);opacity:0;transition:opacity .12s}
+#tip .h{font-weight:700;color:#eafcff;margin-bottom:3px}
+#tip .d{color:var(--txt-dim);margin-bottom:5px}
+#tip .st{font-family:var(--mono);font-size:10px;color:var(--acc)}
+#palNote{padding:0 12px 8px;font-size:10px;color:var(--txt-dim);line-height:1.4;
+  border-bottom:1px solid var(--line)}
+#palNote b{color:var(--acc2)}
+#legend{position:fixed;pointer-events:none;z-index:70;width:330px;padding:10px 12px;border-radius:10px;
+  background:rgba(8,13,19,.97);border:1px solid var(--line-strong);font-size:10.5px;line-height:1.5;
+  box-shadow:0 12px 34px rgba(0,0,0,.65);opacity:0;transition:opacity .12s;display:none}
+#legend .lh{font-weight:700;color:#eafcff;margin-bottom:6px;letter-spacing:.04em}
+#legend .lr{display:flex;align-items:center;gap:7px;margin:2px 0;color:var(--txt)}
+#legend .lr i{width:22px;height:3px;border-radius:2px;flex:none}
+#legend .lr b{color:#eafcff;font-weight:600}
+#legend .ls{color:var(--txt-dim);margin:2px 0 7px 29px;font-size:10px}
+#ghost{position:fixed;pointer-events:none;z-index:70;width:26px;height:26px;border-radius:50%;margin:-13px 0 0 -13px;
+  display:none;box-shadow:inset -6px -6px 10px rgba(0,0,0,.5), inset 4px 4px 8px rgba(255,255,255,.35),0 0 18px currentColor}
+#log{position:fixed;left:266px;bottom:74px;width:340px;max-height:118px;overflow:hidden;pointer-events:none;
+  display:flex;flex-direction:column-reverse;gap:2px;font-family:var(--mono);font-size:10.5px}
+#log div{color:var(--txt-dim);text-shadow:0 1px 3px #000;animation:fade 9s forwards}
+#log div b{color:var(--acc)}
+@keyframes fade{0%,60%{opacity:1}100%{opacity:0}}
+#loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;
+  background:var(--bg);z-index:100;transition:opacity .5s}
+#loading .l{letter-spacing:.3em;font-size:14px;color:var(--acc)}
+#loading .s{font-size:11px;color:var(--txt-dim)}
+
+/* ---------- pannello materiali ---------- */
+#matpanel{top:62px;left:266px;width:600px;max-height:calc(100vh - 220px);
+  display:none;flex-direction:column;z-index:30}
+#matpanel.on{display:flex}
+#matCols{flex:1;display:flex;min-height:0}
+#matCols>#matBody{flex:1;min-width:0}
+#matDestra{flex:1.05;min-width:0;display:flex;flex-direction:column;
+  border-left:1px solid var(--line);min-height:0}
+#matColori{flex:1;min-height:0;padding:8px 10px 10px}
+#matDisegno{flex:none;border-top:1px solid var(--line);padding:7px 10px 8px;
+  display:grid;grid-template-columns:auto 1fr;gap:5px 8px;align-items:center}
+#matDisegno label{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--txt-dim)}
+#matDisegno select,#matDisegno input[type=number]{min-width:0;width:100%}
+#matDisegno input[type=number]{font-family:var(--mono);font-size:11px}
+#matDisegno .q{grid-column:1/-1;font-size:9.5px;color:var(--txt-dim)}
+#matColori .ct{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--txt-dim);
+  margin:8px 0 3px;display:flex;align-items:center;gap:6px}
+#matColori .ct:first-child{margin-top:0}
+#matColori .ct::after{content:"";flex:1;height:1px;background:var(--line)}
+#matColori .cr{display:flex;align-items:center;gap:7px;padding:2px 0;font-size:11px}
+#matColori .cr label{flex:1;cursor:pointer;color:var(--txt)}
+#matColori .cr input[type=color]{width:26px;height:17px;padding:0;border:1px solid var(--line);
+  border-radius:4px;background:none;cursor:pointer;flex:none}
+#matColori .cr input[type=color]::-webkit-color-swatch-wrapper{padding:1px}
+#matColori .cr input[type=color]::-webkit-color-swatch{border:none;border-radius:3px}
+#matColori .cr b{font-family:var(--mono);font-size:9.5px;color:var(--txt-dim);font-weight:400}
+#matColori .cr.sel{background:rgba(57,211,192,.16);outline:1px solid var(--acc);
+  border-radius:5px;margin:0 -4px;padding:2px 4px}
+#matColori .cr.sel label{color:#fff}
+
+/* ---------- pannello Debug del BrainProgram ---------- */
+/*  E' un editor: sta stretto in una colonna. Occupa la fascia libera fra la
+    tavolozza a sinistra e la scheda a destra, che e' lo spazio che nessun
+    altro pannello usa tutto. */
+/*  L'opacita' e' una variabile, non un valore: il cursore in barra la muove e
+    tutto quel che ha uno sfondo dentro il pannello la segue in proporzione —
+    compresa la sfocatura, che a pannello trasparente va tolta o della scena
+    sotto non si vedrebbe comunque niente. */
+.dbgpanel{top:62px;left:266px;right:314px;bottom:74px;min-width:520px;
+  --dbg-a:.86;
+  display:none;flex-direction:column;z-index:34;
+  background:rgba(14,20,28,var(--dbg-a));
+  backdrop-filter:blur(calc(var(--dbg-a) * 16px)) saturate(1.3)}
+.dbgpanel.on{display:flex}
+/*  Il pannello con cui si sta lavorando sta sopra gli altri: aprendone piu'
+    d'uno si sovrappongono, e l'ultimo toccato dev'essere quello davanti. */
+.dbgpanel.fronte{z-index:36}
+/*  IL LAMPO. Con piu' pannelli sovrapposti, portarne uno davanti non basta a
+    dire quale si e' aperto: due copie dello stesso editor si somigliano.
+    Due battiti di bordo e di alone, e l'occhio va li' da solo.
+    L'animazione tocca solo `box-shadow` e `border-color`, che il compositore
+    disegna senza rifare il layout: un pannello con dentro un editor non deve
+    ricalcolarsi per lampeggiare. */
+@keyframes dbgLampo{
+  0%,100%{box-shadow:0 12px 40px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.05)}
+  20%,60%{box-shadow:0 0 0 3px var(--acc), 0 12px 46px rgba(57,211,192,.55);
+          border-color:var(--acc)}
+}
+.dbgpanel.lampo{animation:dbgLampo .42s ease-in-out 2}
+/*  Il bersaglio da trascinare su un esserino. E' un segno, non un bottone:
+    si prende e si porta, quindi non deve sembrare cliccabile. */
+.dbgTarget{font-size:15px;line-height:1;color:var(--acc);cursor:grab;
+  padding:2px 5px;border:1px dashed rgba(57,211,192,.45);border-radius:6px;user-select:none}
+.dbgTarget:hover{background:rgba(57,211,192,.14);border-color:var(--acc)}
+.dbgTarget.presa{cursor:grabbing;opacity:.4}
+/*  Il fantasma che segue il puntatore mentre si trascina il bersaglio. */
+#dbgGhost{position:fixed;z-index:120;pointer-events:none;display:none;
+  transform:translate(-50%,-50%);font-size:18px;color:var(--acc);
+  text-shadow:0 0 10px rgba(57,211,192,.9),0 1px 3px #000}
+/*  La barra del titolo e' anche la maniglia: il pannello copre mezza vasca, e
+    dove metterlo dipende da dov'e' l'esserino che si sta guardando. */
+.dbgpanel h2{cursor:move;user-select:none}
+/*  L'AVVOLGIBILE. La spinta a destra sta sulla freccia, non sulla crocetta:
+    con `margin-left:auto` su tutt'e due lo spazio libero si dividerebbe fra
+    le due e resterebbero staccate a meta' barra. */
+.dbgpanel h2 .fold{margin-left:auto;cursor:pointer;color:var(--txt-dim);
+  font-size:11px;line-height:1;padding:0 3px;user-select:none}
+.dbgpanel h2 .fold:hover{color:var(--acc)}
+.dbgpanel h2 .x{margin-left:8px;cursor:pointer;color:var(--txt-dim);font-size:13px;line-height:1}
+.dbgpanel h2 .x:hover{color:var(--warn)}
+/*  Arrotolato: resta il titolo e la barra dei comandi, e la maniglia di
+    ridimensionamento sparisce — non c'e' piu' niente da ridimensionare. */
+.dbgpanel.piegato .dbgMain,
+.dbgpanel.piegato .dbgCons,
+.dbgpanel.piegato .dbgGrip{display:none}
+.dbgGrip{position:absolute;right:0;bottom:0;width:18px;height:18px;cursor:nwse-resize;z-index:3}
+.dbgGrip::after{content:"";position:absolute;right:4px;bottom:4px;width:9px;height:9px;
+  border-right:2px solid var(--line-strong);border-bottom:2px solid var(--line-strong);
+  border-radius:0 0 4px 0;opacity:.7}
+.dbgGrip:hover::after{opacity:1;border-color:var(--acc)}
+.dbgpanel h2 .chi{font-size:10px;letter-spacing:.05em;text-transform:none;color:var(--acc)}
+.dbgBar{display:flex;gap:5px;align-items:center;padding:6px 9px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.dbgBar button{padding:4px 8px;font-size:11px}
+.dbgAlfa{display:flex;align-items:center;gap:5px;color:var(--txt-dim);font-size:11px}
+.dbgAlfa input{width:74px;margin:0}
+.dbgStato{margin-left:auto;font-family:var(--mono);font-size:9.5px;color:var(--txt-dim);
+  text-align:right;line-height:1.35;white-space:nowrap}
+.dbgStato b{color:var(--acc);font-weight:400}
+.dbgStato .err{color:var(--warn)}
+.dbgMain{flex:1;display:flex;min-height:0}
+.dbgEd{flex:1;display:flex;min-width:0;overflow:hidden}
+
+/*  La grondaia e il codice DEVONO avere la stessa altezza di riga, o il
+    segnalino finisce accanto alla riga sbagliata: 17px, scritto in tutt'e
+    tre i posti, e la casella di testo sopra il codice colorato con lo stesso
+    font e lo stesso bordo interno. */
+.dbgGut{width:58px;flex:none;overflow:hidden;position:relative;
+  background:rgba(0,0,0,calc(var(--dbg-a) * .28));
+  border-right:1px solid var(--line)}
+.dbgGut > div{padding:8px 0;will-change:transform}
+.dbgGut .g{height:17px;display:flex;align-items:center;gap:5px;padding:0 6px;cursor:pointer;position:relative}
+.dbgGut .g:hover{background:rgba(120,200,230,.13)}
+.dbgGut .g .n{flex:1;text-align:right;font-family:var(--mono);font-size:10px;color:#5d7181}
+.dbgGut .g.can .n{color:var(--txt-dim)}
+.dbgGut .g .d{width:8px;height:8px;border-radius:50%;flex:none;border:1px solid transparent}
+.dbgGut .g.can .d{border-color:rgba(120,160,190,.34)}
+.dbgGut .g.brk .d{background:var(--warn);border-color:var(--warn);box-shadow:0 0 7px rgba(255,122,110,.85)}
+.dbgGut .g .f{position:absolute;left:0;top:1px;bottom:1px;width:3px;background:var(--acc);
+  border-radius:0 2px 2px 0;opacity:0}
+.dbgGut .g.qui{background:rgba(57,211,192,.20)}
+.dbgGut .g.qui .n{color:#dffdf7}
+.dbgGut .g.stop{background:rgba(255,122,110,.24)}
+.dbgGut .g.stop .n{color:#ffd8d3}
+
+.dbgWrap{flex:1;position:relative;min-width:0}
+.dbgHi,.dbgTa{position:absolute;inset:0;margin:0;padding:8px 10px;border:0;
+  font-family:var(--mono);font-size:11px;line-height:17px;white-space:pre;
+  overflow:auto;tab-size:2;-moz-tab-size:2}
+/*  L'ombra sotto al testo non e' un vezzo: col pannello trasparente il codice
+    finisce sopra una scena che si muove, e senza si perde. */
+.dbgHi{pointer-events:none;color:var(--txt);overflow:hidden;
+  text-shadow:0 1px 3px rgba(0,0,0,calc(1 - var(--dbg-a) * .6))}
+.dbgTa{background:transparent;color:transparent;caret-color:var(--acc);resize:none;outline:none}
+.dbgTa::selection{background:rgba(120,180,220,.32)}
+.dbgTa::-webkit-scrollbar{width:8px;height:8px}
+.dbgTa::-webkit-scrollbar-thumb{background:rgba(120,180,210,.22);border-radius:4px}
+/*  I colori del codice. Sono tinte, non semafori: la sintassi si legge di
+    sfuggita mentre si guarda il lampeggio della riga, quindi niente contrasti
+    che rubino l'occhio. */
+.dbgHi .jk{color:#c792ea}
+.dbgHi .js{color:#a3d98a}
+.dbgHi .jn{color:#f5a26a}
+.dbgHi .jc{color:#5a6f80;font-style:italic}
+.dbgHi .jf{color:#82aaff}
+.dbgHi .jp{color:#8fa8ba}
+
+.dbgVars{width:236px;flex:none;border-left:1px solid var(--line);padding:7px 8px;
+  font-family:var(--mono);font-size:10px;line-height:1.5;
+  background:rgba(0,0,0,calc(var(--dbg-a) * .18))}
+.dbgVars .vt{font-family:var(--font);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--txt-dim);margin:0 0 5px;display:flex;align-items:center;gap:6px}
+.dbgVars .vt::after{content:"";flex:1;height:1px;background:var(--line)}
+.dbgVars .vr{display:flex;gap:6px;padding:1px 0;align-items:baseline}
+.dbgVars .vk{color:var(--acc2);flex:none;max-width:96px;overflow:hidden;text-overflow:ellipsis}
+.dbgVars .vv{color:var(--txt);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dbgVars .vuoto{color:var(--txt-dim);font-family:var(--font);font-size:10.5px;line-height:1.5}
+
+/*  La console del programma. Sta SOTTO l'editor e non di lato: le righe sono
+    lunghe, e un errore va letto insieme al codice che l'ha prodotto — non
+    accanto a una colonna di variabili. */
+.dbgCons{flex:none;height:116px;display:flex;flex-direction:column;
+  border-top:1px solid var(--line);background:rgba(0,0,0,calc(var(--dbg-a) * .26))}
+.dbgpanel.chiusa .dbgCons{height:25px}
+.dbgConsBar{flex:none;display:flex;align-items:center;gap:7px;padding:4px 8px;cursor:pointer;
+  font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--txt-dim);
+  border-bottom:1px solid var(--line)}
+.dbgpanel.chiusa .dbgConsBar{border-bottom:0}
+.dbgConsBar:hover{color:var(--txt)}
+.dbgConsBar .n{font-family:var(--mono);letter-spacing:0;text-transform:none;font-size:10px}
+.dbgConsBar .n.err{color:var(--warn)}
+.dbgConsBar button{margin-left:auto;padding:1px 7px;font-size:10px}
+.dbgConsBody{flex:1;min-height:0;padding:4px 8px 6px;overflow-y:auto;
+  font-family:var(--mono);font-size:10px;line-height:1.5}
+.dbgpanel.chiusa .dbgConsBody{display:none}
+.dbgConsBody .l{display:flex;gap:6px;align-items:baseline;padding:1px 0;
+  border-bottom:1px solid rgba(120,160,190,.07)}
+.dbgConsBody .l.err{color:#ff9d8f}
+.dbgConsBody .l.sys{color:var(--acc2)}
+.dbgConsBody .l.log{color:var(--txt)}
+.dbgConsBody .r{flex:none;color:var(--txt-dim);min-width:30px;text-align:right;cursor:pointer}
+.dbgConsBody .r:hover{color:var(--acc)}
+.dbgConsBody .m{flex:1;min-width:0;white-space:pre-wrap;word-break:break-word}
+.dbgConsBody .x{flex:none;color:var(--txt-dim);font-size:9px}
+.dbgConsBody .vuoto{color:var(--txt-dim);font-family:var(--font);font-size:10.5px}
+
+/* ---------- pannello della documentazione per l'AI ---------- */
+/*  Sta al posto degli altri pannelli di sinistra, ma piu' largo: quel che
+    mostra e' testo a larghezza fissa scritto per essere letto e copiato, e
+    andare a capo lo renderebbe illeggibile. */
+/*  Nasce piccolo e al centro: la misura vera gliela da' il codice, che sa
+    quanto e' grande la finestra. Si sposta dalla barra del titolo e si
+    ridimensiona dall'angolo, come il pannello Debug. */
+#docpanel{width:560px;height:440px;display:none;flex-direction:column;z-index:33}
+#docpanel.on{display:flex}
+#docpanel h2{cursor:move;user-select:none}
+#docpanel h2 .x{margin-left:auto;cursor:pointer;color:var(--txt-dim);font-size:13px;line-height:1}
+#docpanel h2 .x:hover{color:var(--warn)}
+#docGrip{position:absolute;right:0;bottom:0;width:18px;height:18px;cursor:nwse-resize;z-index:3}
+#docGrip::after{content:"";position:absolute;right:4px;bottom:4px;width:9px;height:9px;
+  border-right:2px solid var(--line-strong);border-bottom:2px solid var(--line-strong);
+  border-radius:0 0 4px 0;opacity:.7}
+#docGrip:hover::after{opacity:1;border-color:var(--acc)}
+#docIntro{flex:none;padding:8px 11px;border-bottom:1px solid var(--line);
+  font-size:11px;line-height:1.5;color:var(--txt)}
+#docIntro .t{margin-bottom:7px}
+#docIntro .btns{display:flex;gap:6px}
+#docIntro button{padding:4px 8px;font-size:11px}
+#docIntro b{color:var(--acc)}
+#docIntro .btns{flex:none;display:flex;gap:6px}
+#docBody{flex:1;min-height:0;overflow:auto;padding:10px 12px;margin:0;
+  font-family:var(--mono);font-size:10.5px;line-height:1.5;color:var(--txt);
+  white-space:pre;tab-size:2;user-select:text}
+#docBody.vuoto{white-space:normal;color:var(--txt-dim);font-family:var(--font);font-size:12px}
+
+/* ---------- aiuto della modalità Edit ---------- */
+#edithelp{position:fixed;pointer-events:none;z-index:70;width:330px;padding:10px 12px;border-radius:10px;
+  background:rgba(8,13,19,.97);border:1px solid var(--line-strong);font-size:10.5px;line-height:1.55;
+  box-shadow:0 12px 34px rgba(0,0,0,.65);opacity:0;transition:opacity .12s;display:none}
+#edithelp .lh{font-weight:700;color:#eafcff;margin-bottom:6px;letter-spacing:.04em}
+#edithelp .kr{display:flex;gap:8px;margin:3px 0;color:var(--txt)}
+#edithelp kbd{font-family:var(--mono);font-size:9.5px;background:rgba(255,255,255,.08);
+  border:1px solid var(--line);border-radius:4px;padding:1px 5px;color:var(--acc);flex:none;min-width:58px;text-align:center}
+#edithelp .lg{display:flex;align-items:center;flex-wrap:wrap;gap:3px;margin-top:8px;
+  padding-top:7px;border-top:1px solid var(--line);color:var(--txt-dim)}
+#edithelp .lg i{display:inline-block;width:14px;height:3px;border-radius:2px;margin-right:3px;vertical-align:middle}
+#edithelp .ls{color:var(--txt-dim);margin-top:7px}
+#matpanel h2 .x{margin-left:auto;cursor:pointer;color:var(--txt-dim);font-size:13px;line-height:1}
+#matpanel h2 .x:hover{color:var(--warn)}
+
+/*  Bottoni con la scritta colorata: il colore dice a colpo d'occhio di che
+    natura è l'azione, senza doverla leggere. Solo il TESTO — riempirli
+    trasformerebbe la colonna in un semaforo. */
+.btn-del{color:var(--warn)}
+.btn-del:hover{color:#ff9c93}
+.btn-ris{color:var(--acc2)}
+.btn-ris:hover{color:#a8caff}
+.btn-move{color:#ffd76e}
+.btn-move:hover{color:#ffe6a0}
+.btn-save{color:#7fe08a}
+.btn-save:hover{color:#a4ecad}
+/*  Separatore con etichetta dentro un pannello: una riga di testo minuto e un
+    filetto che prosegue fino al bordo. */
+.seplab{width:100%;display:flex;align-items:center;gap:6px;margin:5px 0 1px;
+  font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--txt-dim)}
+.seplab::after{content:"";flex:1;height:1px;background:var(--line)}
+
+/* ---------- pannello del rendering ---------- */
+#renderpanel{top:62px;left:266px;width:250px;max-height:calc(100vh - 220px);
+  display:none;flex-direction:column;z-index:30}
+#renderpanel.on{display:flex}
+#renderpanel h2 .x{margin-left:auto;cursor:pointer;color:var(--txt-dim);font-size:13px;line-height:1}
+#renderpanel h2 .x:hover{color:var(--warn)}
+#renderBody{flex:1;min-height:0;padding:8px 10px 10px;display:flex;flex-direction:column;gap:4px}
+#renderBody .mo{justify-content:flex-start;width:100%;text-align:left}
+#renderBody .mo.on{border-color:var(--acc);background:rgba(57,211,192,.16);color:#fff}
+/* il dettaglio riguarda solo il tessuto: sta appeso alle sue due voci, rientrato */
+#renderBody .det{margin:1px 0 5px 14px;padding-left:8px;border-left:1px solid var(--line)}
+#renderBody .det .lab{display:flex;font-size:10px;color:var(--txt-dim);margin-bottom:1px}
+#renderBody .det .lab b{margin-left:auto;font-family:var(--mono);color:var(--acc2);font-weight:500}
+#renderBody .det.spento{opacity:.4}
+    #skinBody .gene.spento{opacity:.4}
+#renderFoot{flex:none;border-top:1px solid var(--line);padding:8px 10px;
+  display:flex;align-items:center;gap:7px}
+#renderFoot .nota{margin-left:auto;font-size:9px;color:var(--txt-dim);text-align:right;line-height:1.35}
+
+/* ---------- pannello del materiale della pelle ---------- */
+#skinpanel{top:62px;left:266px;width:290px;max-height:calc(100vh - 220px);
+  display:none;flex-direction:column;z-index:31}
+#skinpanel.on{display:flex}
+#skinpanel h2 .x{margin-left:auto;cursor:pointer;color:var(--txt-dim);font-size:13px;line-height:1}
+#skinpanel h2 .x:hover{color:var(--warn)}
+#skinBody{flex:1;min-height:0;padding:8px 12px 10px}
+#skinBody .gene{margin:7px 0}
+#skinBody .q{font-size:9.5px;color:var(--txt-dim);margin-top:9px;line-height:1.5}
+#skinFoot{flex:none;border-top:1px solid var(--line);padding:8px 10px;
+  display:flex;align-items:center;gap:7px}
+#skinFoot .nota{margin-left:auto;font-size:9px;color:var(--txt-dim);text-align:right;line-height:1.35}
+/* il bottone che lo apre sta appeso alle voci del tessuto, come il dettaglio */
+#renderBody .sub{margin:1px 0 5px 14px;padding-left:8px;border-left:1px solid var(--line)}
+#renderBody .sub button{width:100%;justify-content:flex-start;text-align:left}
+
+/* ---------- pannello della simulazione ---------- */
+#simpanel{top:62px;left:266px;width:290px;max-height:calc(100vh - 220px);
+  display:none;flex-direction:column;z-index:30}
+#simpanel.on{display:flex}
+#simpanel h2 .x{margin-left:auto;cursor:pointer;color:var(--txt-dim);font-size:13px;line-height:1}
+#simpanel h2 .x:hover{color:var(--warn)}
+#simBody{flex:1;min-height:0;padding:8px 12px 10px}
+#simBody .gene{margin:7px 0}
+#simBody .q{font-size:9.5px;color:var(--txt-dim);margin-top:9px;line-height:1.5}
+#simFoot{flex:none;border-top:1px solid var(--line);padding:8px 10px;
+  display:flex;align-items:center;gap:7px}
+#simFoot .nota{margin-left:auto;font-size:9px;color:var(--txt-dim);text-align:right;line-height:1.35}
+#audiopanel{top:62px;right:314px;width:280px;max-height:calc(100vh - 220px);
+  display:none;flex-direction:column;z-index:30}
+#audiopanel.on{display:flex}
+#audiopanel h2 .x{margin-left:auto;cursor:pointer;color:var(--txt-dim);font-size:13px;line-height:1}
+#audiopanel h2 .x:hover{color:var(--warn)}
+#audioSwitch{flex:none;display:flex;align-items:center;gap:8px;padding:8px 12px;
+  border-bottom:1px solid var(--line)}
+#audioSwitch button{font-size:10px;padding:3px 9px}
+#audioSwitch .nota{margin-left:auto;font-size:9px;color:var(--txt-dim);text-align:right;line-height:1.35}
+#audioBody{flex:1;min-height:0;padding:8px 12px 10px}
+#audioBody .gene{margin:7px 0}
+#audioBody .q{font-size:9.5px;color:var(--txt-dim);margin-top:9px;line-height:1.5}
+/* Chi stiamo sentendo, adesso. Riquadrato e in evidenza perche' cambia da
+   solo mentre il mouse gira: se fosse una riga di testo come le altre non si
+   noterebbe che e' viva. */
+#audioNow{margin:10px 0 2px;padding:6px 8px;border:1px solid var(--line);
+  border-radius:5px;background:rgba(255,255,255,.03);font-size:10px;
+  color:var(--txt-dim);line-height:1.45}
+#audioNow b{color:var(--txt);font-weight:600}
+#audioNow.solo{border-color:var(--acc);background:rgba(57,211,192,.08)}
+/* Il grafico della frase: si vede solo mentre si isola un esserino. */
+#audioFrase{display:none;width:100%;height:42px;margin:6px 0 2px;border-radius:4px}
+#audioFrase.on{display:block}
+
+/* ---------- pannello del vetro ---------- */
+#vetropanel{top:62px;left:266px;width:290px;max-height:calc(100vh - 220px);
+  display:none;flex-direction:column;z-index:30}
+#vetropanel.on{display:flex}
+#vetropanel h2 .x{margin-left:auto;cursor:pointer;color:var(--txt-dim);font-size:13px;line-height:1}
+#vetropanel h2 .x:hover{color:var(--warn)}
+#vetroTinta{flex:none;display:flex;align-items:center;gap:8px;
+  padding:8px 12px;border-bottom:1px solid var(--line)}
+#vetroTinta label{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--txt-dim)}
+#vetroTinta input[type=color]{width:34px;height:19px;padding:0;border:1px solid var(--line);
+  border-radius:4px;background:none;cursor:pointer;flex:none}
+#vetroTinta input[type=color]::-webkit-color-swatch-wrapper{padding:1px}
+#vetroTinta input[type=color]::-webkit-color-swatch{border:none;border-radius:3px}
+#vetroTinta button{margin-left:auto;font-size:10px;padding:3px 7px}
+#vetroBody{flex:1;min-height:0;padding:8px 12px 10px}
+#vetroBody .gene{margin:7px 0}
+#vetroBody .q{font-size:9.5px;color:var(--txt-dim);margin-top:9px;line-height:1.5}
+#vetroFoot{flex:none;border-top:1px solid var(--line);padding:8px 10px;
+  display:flex;align-items:center;gap:7px}
+#vetroFoot .nota{margin-left:auto;font-size:9px;color:var(--txt-dim);text-align:right;line-height:1.35}
+/* ---------- torneo ---------- */
+/* bottone ed etichetta stanno IN FILA nella barra delle vasche, dopo il menu
+   del cibo automatico: il torneo si comanda da li', vicino alle vasche su cui
+   agisce, e non da un riquadro che galleggia per conto suo */
+#vesselbar #btnTourn{flex:0 0 auto}
+#tournStato{flex:0 1 auto;font-size:10.5px;color:var(--txt-dim);
+  max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:none}
+#tournStato.on{display:block}
+#tournStato b{color:var(--txt)}
+#tournpanel{right:10px;bottom:72px;width:390px;max-height:calc(100vh - 150px);
+  display:none;flex-direction:column;z-index:31}
+#tournpanel.on{display:flex}
+#tournpanel h2 .x{margin-left:auto;cursor:pointer;color:var(--txt-dim);font-size:13px;line-height:1}
+#tournpanel h2 .x:hover{color:var(--warn)}
+#tournCtrl{flex:none;display:flex;gap:6px;padding:8px 12px;border-bottom:1px solid var(--line)}
+#tournCtrl button{flex:1}
+#tournBody{flex:1;min-height:0;padding:8px 12px 12px}
+#tournBody .tit{font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--txt-dim);margin:12px 0 5px}
+#tournBody .tit:first-child{margin-top:2px}
+#tournBody .riga{display:flex;align-items:center;gap:6px;margin:4px 0}
+#tournBody .riga>label{font-size:10.5px;color:var(--txt-dim);flex:1}
+#tournBody .riga select{width:120px}
+/* la lista degli iscritti */
+#tournLista{display:flex;flex-direction:column;gap:3px;margin-top:2px}
+.trow{display:flex;align-items:center;gap:6px;padding:5px 7px;border:1px solid var(--line);
+  border-radius:7px;background:rgba(120,180,220,.05);cursor:grab}
+.trow.drag{opacity:.4}
+.trow.sopra{border-color:var(--acc)}
+.trow .man{color:var(--txt-dim);font-size:11px;line-height:1}
+.trow .nome{flex:1;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.trow .tag{font-size:8.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--txt-dim);
+  border:1px solid var(--line);border-radius:5px;padding:1px 4px}
+.trow .tag.bp{color:var(--acc);border-color:var(--acc)}
+.trow button{padding:2px 6px;font-size:10px}
+#tournDrop{margin-top:6px;border:1px dashed var(--line-strong);border-radius:8px;padding:9px;
+  text-align:center;font-size:10px;color:var(--txt-dim);cursor:pointer}
+#tournDrop.sopra{border-color:var(--acc);color:var(--txt)}
+/* tabellone e classifica */
+.tmatch{display:flex;align-items:center;gap:6px;font-size:10.5px;padding:3px 6px;border-radius:6px;
+  border:1px solid transparent}
+.tmatch.ora{border-color:var(--acc);background:rgba(57,211,192,.10)}
+.tmatch .n{color:var(--txt-dim);min-width:24px}
+.tmatch .chi{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tmatch .vin{color:var(--acc)}
+.tclass{display:flex;align-items:center;gap:8px;font-size:11px;padding:3px 6px}
+.tclass .pos{color:var(--txt-dim);min-width:20px}
+.tclass .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tclass .pt{color:var(--acc)}
+.tclass.primo .nm{color:#dffdf7}
+#tournBody .nota{font-size:9.5px;color:var(--txt-dim);line-height:1.4;margin-top:6px}
+/* l'albero di chi ha battuto chi: i rami sono caratteri, non disegni, e per
+   restare allineati vogliono un passo fisso */
+.ttree{margin-top:2px}
+.tnode{display:flex;align-items:baseline;gap:6px;font-size:11px;padding:1px 6px}
+.tnode .ram{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10.5px;
+  color:var(--txt-dim);white-space:pre}
+.tnode .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tnode .pt{color:var(--acc);font-size:10px}
+.tnode.rip .nm{color:var(--txt-dim)}
+.tnode .rip{color:var(--txt-dim);font-size:10px}
+
+/* ---------- pannello delle luci ---------- */
+#lucipanel{top:62px;left:266px;width:290px;max-height:calc(100vh - 220px);
+  display:none;flex-direction:column;z-index:31}
+#lucipanel.on{display:flex}
+#lucipanel h2 .x{margin-left:auto;cursor:pointer;color:var(--txt-dim);font-size:13px;line-height:1}
+#lucipanel h2 .x:hover{color:var(--warn)}
+#luciTop{flex:none;display:flex;align-items:center;gap:8px;
+  padding:8px 12px;border-bottom:1px solid var(--line)}
+#luciTop .nota{margin-left:auto;font-size:9px;color:var(--txt-dim);text-align:right;line-height:1.35}
+#luciBody{flex:1;min-height:0;padding:8px 12px 10px}
+#luciBody .gene{margin:7px 0}
+#luciBody .tit{font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--txt-dim);margin:12px 0 2px;padding-top:8px;border-top:1px solid var(--line)}
+#luciBody .tit:first-child{margin-top:0;padding-top:0;border-top:none}
+#luciBody .col{display:flex;align-items:center;gap:8px;margin:6px 0}
+#luciBody .col label{font-size:10px;color:var(--txt-dim);flex:1}
+#luciBody .col input[type=color]{width:34px;height:19px;padding:0;border:1px solid var(--line);
+  border-radius:4px;background:none;cursor:pointer;flex:none}
+#luciBody .col input[type=color]::-webkit-color-swatch-wrapper{padding:1px}
+#luciBody .col input[type=color]::-webkit-color-swatch{border:none;border-radius:3px}
+#luciBody .q{font-size:9.5px;color:var(--txt-dim);margin-top:10px;line-height:1.5}
+#luciFoot{flex:none;border-top:1px solid var(--line);padding:8px 10px;
+  display:flex;align-items:center;gap:7px}
+#luciFoot .nota{margin-left:auto;font-size:9px;color:var(--txt-dim);text-align:right;line-height:1.35}
+/* le famiglie stanno a sinistra, in colonna: sono l'ambito di ciò che si
+   modifica accanto, non un'intestazione della finestra */
+#matCats{display:flex;flex-direction:column;gap:4px;padding:8px 8px 10px 10px;
+  border-right:1px solid var(--line);flex:0 0 132px}
+#matCats .chip{cursor:pointer;justify-content:flex-start;width:100%}
+#matCats .chip.on{border-color:var(--acc);background:rgba(57,211,192,.16);color:#fff}
+#matBody{flex:1;padding:8px 10px 10px}
+#matBody .gene{margin:7px 0}
+#matFoot{display:flex;gap:6px;padding:8px 10px;border-top:1px solid var(--line)}
+#matFoot .nota{font-size:10px;color:var(--txt-dim);line-height:1.4;margin-left:auto;text-align:right}
+#matFoot button:disabled{opacity:.45;cursor:default}
+</style>
+</head>
+<body>
+
+<canvas id="view"></canvas>
+
+<div id="topbar" class="panel">
+  <div class="logo">CELLS<small>vivarium sim</small></div>
+  <div class="sep"></div>
+  <button id="btnSim" title="Simulation rules: how large a body can grow">Simulation</button>
+  <button id="btnPause" title="Pause / resume (spacebar)">⏸ Pause</button>
+  <button id="btnSpeed" title="Simulation speed">1×</button>
+  <div class="sep"></div>
+  <button id="btnRender" title="Representation, tissue detail and texture (M cycles the modes)">Rendering</button>
+  <button id="btnLabels" title="Mental state above creatures + details of the cell under the pointer">Status</button>
+  <button id="btnVectors" title="">Vectors</button>
+  <div class="sep"></div>
+  <button id="btnMats" title="Material parameters, by cell family">Materials</button>
+  <button id="btnEdit" title="">Edit</button>
+  <div class="spacer"></div>
+  <div class="sep"></div>
+  <button id="btnLights" title="Scene lights: brightness, colour and direction — plus the light effects of attacks">Lights</button>
+  <button id="btnAO" class="on" title="Ambient Occlusion (GTAO)">AO</button>
+  <button id="btnTilt" title="Tilt-shift: one band stays in focus, the rest blurs — the scene looks like a scale model">Tilt-shift</button>
+  <button id="btnGlass" title="Look of the vessel glass">Glass</button>
+  <button id="btnAudio" title="Sound settings: the on/off switch and the faders — every voice is synthesised from its genome">♪ Sound</button>
+  <div id="stats">–</div>
+</div>
+
+<aside id="palette" class="panel">
+  <h2>Cells <span class="badge" id="palHint">click or drag</span></h2>
+  <div id="palNote"><b>shift + right click</b> on a cell to remove it</div>
+  <div id="paletteBody" class="scroll"></div>
+</aside>
+
+<aside id="inspector" class="panel">
+  <h2>Creature &amp; DNA</h2>
+  <div id="inspBody" class="scroll"></div>
+</aside>
+
+<div id="vesselbar" class="panel"></div>
+
+
+<aside id="tournpanel" class="panel">
+  <h2>Tournament <span class="x" id="tournClose">✕</span></h2>
+  <div id="tournCtrl">
+    <button id="tournStart">▶ Start</button>
+    <button id="tournPause">⏸ Pause</button>
+    <button id="tournStop">■ Stop</button>
+  </div>
+  <div id="tournBody" class="scroll"></div>
+</aside>
+
+<div id="log"></div>
+<div id="tip"></div>
+<div id="legend">
+  <div class="lh">What the vectors show</div>
+  <div class="lr"><i style="background:#c8a2ff"></i><b>sight</b> cone — a narrow cone, 5.5 m</div>
+  <div class="lr"><i style="background:#ffc6e0"></i><b>smell</b> cone — nearly spherical, 8 m, imprecise direction</div>
+  <div class="lr"><i style="background:#d8f0ff"></i><b>hearing</b> cone — 9 m, only moving or noisy bodies</div>
+  <div class="lr"><i style="background:#ffe9a8"></i><b>touch</b> cone — on contact only</div>
+  <div class="ls">A cone lights up the moment that sense picks something up.</div>
+  <div class="lr"><i style="background:#6fe08a"></i>line to the <b>food</b> it senses</div>
+  <div class="lr"><i style="background:#ff4d6a"></i>line to the <b>creature</b> it senses</div>
+  <div class="ls">Drawn where the creature <i>believes</i> it is: with the noise of smell the line misses its mark.</div>
+  <div class="lr"><i style="background:linear-gradient(90deg,#ffd76e,#ff6e8a)"></i><b>arrow</b> — the direction the brain chose</div>
+  <div class="ls">As long as the speed it wants, coloured by mental state:
+    <span style="color:#7fb2ff">wandering</span>, <span style="color:#ffd76e">feeding</span>,
+    <span style="color:#ff6e8a">hunting</span>, <span style="color:#ff3a5e">attacking</span>,
+    <span style="color:#8ef2c0">fleeing</span>.</div>
+  <div class="lr"><i style="background:#ff2d55"></i>line to the <b>target cell</b> chosen for the attack</div>
+</div>
+<aside id="matpanel" class="panel">
+  <h2>Materials <span class="x" id="matClose">✕</span></h2>
+  <div id="matCols">
+    <div id="matCats" class="scroll"></div>
+    <div id="matBody" class="scroll"></div>
+    <div id="matDestra">
+      <div id="matColori" class="scroll"></div>
+      <div id="matDisegno">
+        <label for="selDisegno">Texture</label>
+        <select id="selDisegno"></select>
+        <label for="numScala">Scale</label>
+        <input type="number" id="numScala" min="0.1" max="20" step="0.1" value="1"
+               title="how many times the texture repeats over the cell: higher means a denser pattern">
+        <div class="q">of the highlighted type</div>
+      </div>
+    </div>
+  </div>
+  <div id="matFoot">
+    <button id="matReset">Reset</button>
+    <button id="matTex">⟳ Reload textures</button>
+    <div class="nota">values apply to the<br>whole family</div>
+  </div>
+</aside>
+
+<aside id="renderpanel" class="panel">
+  <h2>Rendering <span class="x" id="renderClose">✕</span></h2>
+  <div id="renderBody" class="scroll"></div>
+  <div id="renderFoot">
+    <button id="btnTex" class="on" title="Procedural texture on every cell type">Texture</button>
+    <div class="nota">M cycles<br>the modes</div>
+  </div>
+</aside>
+
+<aside id="skinpanel" class="panel">
+  <h2>Skin material <span class="x" id="skinClose">✕</span></h2>
+  <div id="skinBody" class="scroll"></div>
+  <div id="skinFoot">
+    <button id="skinReset">Reset</button>
+    <div class="nota">values stay<br>saved in the browser</div>
+  </div>
+</aside>
+
+<aside id="simpanel" class="panel">
+  <h2>Simulation <span class="x" id="simClose">✕</span></h2>
+  <div id="simBody" class="scroll"></div>
+  <div id="simFoot">
+    <button id="simReset">Reset</button>
+    <div class="nota">values stay<br>saved in the browser</div>
+  </div>
+</aside>
+
+<aside id="audiopanel" class="panel">
+  <h2>Sound <span class="x" id="audioClose">✕</span></h2>
+  <div id="audioSwitch">
+    <button id="audioOnOff" title="The whole sound at once — the voices, the cries of pain and the impacts">Off</button>
+    <div class="nota">the faders decide how loud,<br>this decides whether</div>
+  </div>
+  <div id="audioBody" class="scroll"></div>
+</aside>
+
+<!--  UN MODELLO, NON UN PANNELLO. Se ne clona uno per ogni esserino che si
+      vuole guardare, quindi qui dentro non ci possono essere `id`: si
+      userebbero due volte. Ogni pezzo si riconosce da `data-k`, che il
+      pannello cerca dentro la propria copia e basta. -->
+<aside id="docpanel" class="panel">
+  <h2>AI docs <span class="x" id="docClose">✕</span></h2>
+  <div id="docIntro">
+    <div class="t"><b>Documentation for an AI.</b> Below is <b>BrainProgram.md</b>, the whole
+      API a creature's brain is written against. Hand this file to an AI model, ask it for a
+      <b>BrainProgram.js</b>, and load what it writes with <b>🧠 BrainProgram</b>.</div>
+    <div class="btns">
+      <button id="docCopy" title="Copy the whole document to the clipboard, ready to paste into a chat">⧉ Copy</button>
+      <button id="docDown" title="Download BrainProgram.md">⬇ Download</button>
+    </div>
+  </div>
+  <pre id="docBody" class="vuoto">loading…</pre>
+  <div id="docGrip" title="Drag to resize · double-click the title bar to centre it again"></div>
+</aside>
+
+<template id="dbgTpl">
+<aside class="dbgpanel panel">
+  <h2>Debug <span class="chi" data-k="chi"></span>
+    <span class="fold" data-k="fold" title="Roll the panel up to the toolbar, and back">▾</span>
+    <span class="x" data-k="close">✕</span></h2>
+  <div class="dbgBar">
+    <button data-k="run" class="btn-save" title="Compile what is in the editor and hand it to this creature">▶ Apply</button>
+    <button data-k="cont" title="Let the simulation run again. It will stop here again on the next frame that reaches a breakpoint.">▶ Continue</button>
+    <button data-k="step" title="Run one more frame and stop one line further on">⤓ Step line</button>
+    <button data-k="frame" title="Run exactly one simulation step with breakpoints suspended, then pause">⏭ Frame</button>
+    <button data-k="brk" title="Turn every breakpoint off without losing them">● Breakpoints</button>
+    <button data-k="save" title="Download what is in the editor as a .js file">⬇ Export</button>
+    <span class="dbgTarget" data-k="target" title="Drag this onto any creature in a vessel to give it the program in this editor. Drop it on empty water and nothing happens.">◎</span>
+    <label class="dbgAlfa" title="Fade the panel out to watch the creature through it">◑
+      <input type="range" data-k="alfa" min="0.12" max="1" step="0.01" value="0.86">
+    </label>
+    <div class="dbgStato" data-k="stato"></div>
+  </div>
+  <div class="dbgMain">
+    <div class="dbgEd">
+      <div class="dbgGut"><div data-k="gutIn"></div></div>
+      <div class="dbgWrap">
+        <pre class="dbgHi" data-k="hi"><code></code></pre>
+        <textarea class="dbgTa" data-k="ta" spellcheck="false" wrap="off" autocomplete="off" autocapitalize="off"></textarea>
+      </div>
+    </div>
+    <div class="dbgVars scroll" data-k="vars"></div>
+  </div>
+  <div class="dbgGrip" data-k="grip" title="Drag to resize · double-click the title bar to reset"></div>
+  <div class="dbgCons">
+    <div class="dbgConsBar" data-k="consBar" title="Everything this program printed or got wrong. Click to fold.">
+      Console <span class="n" data-k="consN"></span>
+      <button data-k="consClear" title="Empty the console">clear</button>
+    </div>
+    <div class="dbgConsBody" data-k="consBody"></div>
+  </div>
+</aside>
+</template>
+
+<aside id="vetropanel" class="panel">
+  <h2>Glass <span class="x" id="vetroClose">✕</span></h2>
+  <div id="vetroTinta">
+    <label for="vetroColore">Colour</label>
+    <input type="color" id="vetroColore" value="#ffffff"
+           title="glass tint: it multiplies the image, so it shows mostly on the grime">
+    <button id="vetroColoreReset" title="back to untinted glass">neutral</button>
+  </div>
+  <div id="vetroBody" class="scroll"></div>
+  <div id="vetroFoot">
+    <button id="vetroVis" class="on" title="show or hide the vessel glass">Visible</button>
+    <button id="vetroReset">Reset</button>
+    <div class="nota">values stay<br>saved in the browser</div>
+  </div>
+</aside>
+
+<aside id="lucipanel" class="panel">
+  <h2>Lights <span class="x" id="luciClose">✕</span></h2>
+  <div id="luciTop">
+    <button id="btnLightFx" class="on"
+            title="Light effects: an attack takes over the scene lights for a moment — electric, sonar and nettle each with their own colour">LightFx</button>
+    <div class="nota">attacks take over<br>the lights for a moment</div>
+  </div>
+  <div id="luciBody" class="scroll"></div>
+  <div id="luciFoot">
+    <button id="luciReset">Reset</button>
+    <div class="nota">this is the level<br>the effects return to</div>
+  </div>
+</aside>
+
+<div id="edithelp">
+  <div class="lh">Direct editing of the body</div>
+  <div class="kr"><kbd>click</kbd><span>select the cell under the pointer: it gets ringed</span></div>
+  <div class="kr"><kbd>palette</kbd><span>click a cell in the panel to attach it to the selected cell</span></div>
+  <div class="kr"><kbd>↑</kbd><span>go up to the parent cell</span></div>
+  <div class="kr"><kbd>↓</kbd><span>go down to the first child</span></div>
+  <div class="kr"><kbd>← →</kbd><span>cycle the siblings, wrapping around at the last</span></div>
+  <div class="kr"><kbd>canc</kbd><span>remove the cell: its children pass to the grandparent</span></div>
+  <div class="lg"><i style="background:#ebb158"></i>the parent &nbsp;<i style="background:#7d9aac"></i>the siblings &nbsp;<i style="background:#26b895"></i>the cell and its descendants</div>
+  <div class="ls">With Edit off, the palette adds wherever the body needs it, following its own priorities.</div>
+</div>
+
+<div id="ghost"></div>
+<div id="dbgGhost">◎</div>
+
+<div id="loading"><div class="l">CELLS</div><div class="s">starting the culture…</div></div>
+
+<script type="module" src="./game.js"></script>
+</body>
+</html>
