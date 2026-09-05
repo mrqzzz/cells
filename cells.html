@@ -579,7 +579,11 @@ input[type=text]:focus{outline:none;border-color:var(--acc)}
 .tnode .rip{color:var(--txt-dim);font-size:10px}
 
 /* ---------- pannello delle luci ---------- */
-#lucipanel{top:62px;left:266px;width:290px;max-height:calc(100vh - 220px);
+/* a DESTRA, sotto il suo bottone: Lights sta nel gruppo di destra della barra
+   — AO, Tilt-shift, Glass, Sound — e apriva un pannello dall'altra parte
+   dello schermo, lontano dal comando che l'aveva chiamato. Stesso ancoraggio
+   di Sound, che e' l'altro pannello di quel gruppo. */
+#lucipanel{top:62px;right:314px;width:290px;max-height:calc(100vh - 220px);
   display:none;flex-direction:column;z-index:31}
 #lucipanel.on{display:flex}
 #lucipanel h2 .x{margin-left:auto;cursor:pointer;color:var(--txt-dim);font-size:13px;line-height:1}

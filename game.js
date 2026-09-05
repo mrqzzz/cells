@@ -592,8 +592,16 @@ const VASO_FORCA = 4;
  *  250 cellule tagliato a metà, che avrebbe le stesse quattro braccia di prima
  *  e nient'altro. */
 const CELLE_TARATURA = 250;
+/*  E QUESTO E' UN'ALTRA COSA: il tetto con cui si PARTE, e a cui torna il
+ *  «Reset» del pannello. I due numeri erano lo stesso, e confonderli e' facile
+ *  perche' finora coincidevano — ma dicono cose diverse. La taratura e' un
+ *  riferimento fisso: sposta quella e si riscalano di colpo tutte le costanti
+ *  scritte a mano nel file, dalle ricette dei preset alla lunghezza delle
+ *  catene. Il valore di partenza invece e' solo la taglia con cui si preferisce
+ *  cominciare, e cambiarlo non tocca nient'altro. */
+const CELLE_DEFAULT = 200;
 const CELLE_PASSI = [50, 100, 150, 200, 250, 300, 350, 400];
-let celleMax = CELLE_TARATURA;
+let celleMax = CELLE_DEFAULT;
 
 let MAX_CELLULE = 275;
 let MAX_CRESCITA = 250;
@@ -635,7 +643,7 @@ function salvaSimulazione() {
 (function riprendiSimulazione() {
   let d = null;
   try { d = JSON.parse(localStorage.getItem(SIM_CHIAVE)); } catch (e) { d = null; }
-  applicaCelleMax(d && typeof d.celleMax === 'number' ? d.celleMax : CELLE_TARATURA);
+  applicaCelleMax(d && typeof d.celleMax === 'number' ? d.celleMax : CELLE_DEFAULT);
 })();
 
 /*  Quanta parte del corpo possono occupare, TUTTE INSIEME, le tre reti: vasi,
@@ -8477,6 +8485,7 @@ function apriPannelloDoc() {
   if (!p) return;
   legaPannelloDoc();
   p.classList.add('on');
+  pannelloInCima(p);
   /*  La misura si prende quando il pannello e' gia' visibile: da nascosto il
    *  rettangolo e' tutto zeri e il centraggio finirebbe nell'angolo. */
   if (!docGeo) docCentra(); else docApplicaGeo();
@@ -11402,10 +11411,35 @@ function puntaMateriale(tipo) {
   aggiornaMenuDisegno();
 }
 
+/*  L'ULTIMO APERTO STA DAVANTI.
+ *
+ *  I pannelli avevano una profondita' FISSA nel foglio di stile, quindi due
+ *  che si sovrappongono si coprivano sempre nello stesso ordine: aprendo
+ *  quello «sotto» si vedeva comparire mezzo pannello dietro l'altro, e per
+ *  guardarlo bisognava chiudere il primo. Ora chi si apre passa in cima.
+ *
+ *  Non un contatore che cresce all'infinito — dopo venti aperture sarebbe
+ *  finito sopra ai tooltip e alla legenda, che stanno a sessanta e settanta —
+ *  ma una rinumerazione: si prendono i pannelli gia' sollevati, si riordinano
+ *  come stavano, e il nuovo si mette in coda. I valori restano fra 40 e una
+ *  cinquantina qualunque cosa si faccia, e chi non e' mai stato sollevato
+ *  resta alla profondita' che gli da' il foglio di stile.
+ */
+const PANNELLO_Z = 40;
+function pannelloInCima(p) {
+  if (!p) return;
+  const gia = [...document.querySelectorAll('.panel, .dbgpanel')]
+    .filter(x => x !== p && x.style.zIndex && x.classList.contains('on'))
+    .sort((a, b) => (+a.style.zIndex || 0) - (+b.style.zIndex || 0));
+  gia.forEach((x, i) => { x.style.zIndex = PANNELLO_Z + i; });
+  p.style.zIndex = PANNELLO_Z + gia.length;
+}
+
 function apriPannelloMateriali(on) {
   const p = document.getElementById('matpanel'), b = document.getElementById('btnMats');
   if (!p) return;
   p.classList.toggle('on', on);
+  if (on) pannelloInCima(p);
   if (b) b.classList.toggle('on', on);
   if (on) {
     // si apre già puntato sull'ultima cellula toccata nella scena: aprirlo e
@@ -11517,16 +11551,18 @@ const pelleIniziale = {};              // istantanea di fabbrica, per «Reset»
  *  dell'istantanea, cosi' sono anche il bersaglio di «Reset». Il disegno e la
  *  sua scala viaggiano a parte perche' non sono parametri del materiale.
  *
- *  E' una pelle translucida e appena iridescente — si intravede quel che c'e'
- *  sotto senza che il corpo diventi un sacchetto — con la venatura gastrica
- *  tirata a quasi il doppio della scala naturale. */
+ *  E' una pelle satinata — ruvidita' bassa ma non nulla, riflesso speculare al
+ *  massimo — velata al 72%, senza trasmissione ne' iridescenza: quel che c'e'
+ *  sotto si legge per trasparenza della membrana, non per rifrazione. La
+ *  venatura gastrica tinge a pieno, a poco meno del doppio della scala
+ *  naturale. */
 const PELLE_PRESET = {
-  opacity: .6865, roughness: .31, metalness: 0, clearcoat: 0, clearcoatRoughness: 0,
-  sheen: 0, iridescence: .29, transmission: .225, ior: 1.2665, specularIntensity: .38,
+  opacity: .7245, roughness: .37, metalness: 0, clearcoat: 0, clearcoatRoughness: 0,
+  sheen: 0, iridescence: 0, transmission: 0, ior: 1, specularIntensity: 2,
   envMapIntensity: 0, emissiveIntensity: 0, normalScale: 3,
-  uWob: .009, uFres: 0, uEmis: 0,
+  uWob: .0126, uFres: 0, uEmis: 0,
 };
-const PELLE_PRESET_TEX = { disegno: 'gastric', mix: 1, scala: 1.9315 };
+const PELLE_PRESET_TEX = { disegno: 'gastric', mix: 1, scala: 1.783 };
 
 function applicaPresetPelle() {
   const m = pelleMat();
@@ -11864,6 +11900,7 @@ function apriPannelloPelle(on) {
   const p = document.getElementById('skinpanel');
   if (!p) return;
   p.classList.toggle('on', on);
+  if (on) pannelloInCima(p);
   const b = document.getElementById('btnSkinMat');
   if (b) b.classList.toggle('on', on);
   if (on) costruisciPannelloPelle();
@@ -11925,6 +11962,7 @@ function apriPannelloSim(on) {
   const p = document.getElementById('simpanel'), b = document.getElementById('btnSim');
   if (!p) return;
   p.classList.toggle('on', on);
+  if (on) pannelloInCima(p);
   if (b) b.classList.toggle('on', on);
   if (on) costruisciPannelloSim();
 }
@@ -12020,15 +12058,20 @@ function apriPannelloLuci(on) {
   const p = document.getElementById('lucipanel'), b = document.getElementById('btnLights');
   if (!p) return;
   p.classList.toggle('on', on);
+  if (on) pannelloInCima(p);
   if (b) b.classList.toggle('on', on);
-  // sta nello stesso posto di quello del vetro: aprirne uno chiude l'altro
-  if (on) { apriPannelloVetro(false); costruisciPannelloLuci(); }
+  /*  Non chiude piu' quello del vetro. Lo faceva perche' stavano nello STESSO
+   *  punto e si coprivano; ora Lights sta a destra e il vetro a sinistra, non
+   *  si toccano, e chiudere d'ufficio un pannello che non da' fastidio a
+   *  nessuno sarebbe solo un dispetto. */
+  if (on) costruisciPannelloLuci();
 }
 
 function apriPannelloVetro(on) {
   const p = document.getElementById('vetropanel'), b = document.getElementById('btnGlass');
   if (!p) return;
   p.classList.toggle('on', on);
+  if (on) pannelloInCima(p);
   if (b) b.classList.toggle('on', on);
   if (on) costruisciPannelloVetro();
 }
@@ -14112,7 +14155,20 @@ function syncEffects(world) {
  *  'lattice' sfere unite da travi: si legge il reticolo dei legami
  *  'cells'   sfere separate
  * ========================================================================== */
-let renderMode = 'spline';           // rappresentazione di partenza
+/*  LA RAPPRESENTAZIONE DI PARTENZA, e da qui in poi quella che si e' scelta.
+ *
+ *  Di fabbrica e' «Skin + cells»: e' la piu' completa — la membrana sopra e gli
+ *  organi che si intravedono sotto — ed e' quella con cui il vivaio si legge
+ *  meglio la prima volta che lo si apre. La spline mostrava i tessuti ma non
+ *  il corpo.
+ *
+ *  La scelta si ricorda: e' un'impostazione della vista come le luci o il
+ *  vetro, e ritrovarla a ogni ricaricamento come l'avevi lasciata e' il minimo.
+ *  Si salvano il modo E la pelle, non l'indice nel menu: l'indice cambia se un
+ *  giorno si riordinano le voci, e un file salvato si ritroverebbe su un'altra
+ *  rappresentazione senza che nessuno l'abbia chiesto. */
+const RENDER_CHIAVE = 'cells.render.v1';
+let renderMode = 'blob';
 
 const cellBaseColor = {};
 for (const id of TYPE_IDS) cellBaseColor[id] = new THREE.Color(CELL_TYPES[id].color);
@@ -14746,7 +14802,7 @@ const QUALITY = [
   { name: 'ultra', voxel: .026, cap: 96 },   // ~3.8
 ];
 let quality = 2;                     // 'alto' di default
-let skinX = true;                    // pelle semitrasparente, organi interni a vista
+let skinX = true;                    // pelle semitrasparente, organi interni a vista (vedi RENDER_CHIAVE)
 
 /** cellule che formano il rivestimento esterno: sono loro a fare da membrana */
 function isSkinCell(c) { return c.def.zone === 'shell'; }
@@ -18708,7 +18764,9 @@ function torneoImporta(testo, nomeFile) {
  *  `init` perche' la chiama anche il bottone nella barra delle vasche, che si
  *  ricostruisce da capo a ogni cambio di struttura. */
 function apriTorneo(on) {
-  document.getElementById('tournpanel').classList.toggle('on', on);
+  const pT = document.getElementById('tournpanel');
+  pT.classList.toggle('on', on);
+  if (on) pannelloInCima(pT);
   const b = document.getElementById('btnTourn');
   if (b) b.classList.toggle('on', on);
   if (on) torneoPannello();
@@ -20687,6 +20745,12 @@ const ui = {
       const r = RM[modoIdx];
       renderMode = ((r.v === 'blob' || r.v === 'mesh') && !MarchingCubes) ? 'lattice' : r.v;
       if (r.pelle !== undefined) skinX = r.pelle;
+      /*  Si scrive quel che l'utente ha CHIESTO, non quel che si e' potuto
+       *  fare: senza `MarchingCubes` il tessuto ripiega sulla griglia, e
+       *  salvare il ripiego vorrebbe dire perdere la scelta per sempre su una
+       *  macchina che quel giorno non aveva la libreria. */
+      try { localStorage.setItem(RENDER_CHIAVE, JSON.stringify({ modo: r.v, pelle: !!r.pelle })); }
+      catch (e) { /* spazio finito o modalita' privata: si riparte dal default */ }
       bottoni.forEach((b, k) => b.classList.toggle('on', k === modoIdx));
       /*  Il bottone in barra dice QUALE modalita' e' accesa. Aperto il
        *  pannello si vede, chiuso no: e con «M» che le scorre, il nome sul
@@ -20742,11 +20806,22 @@ const ui = {
     });
 
     ui.cicloModo = () => setMode((modoIdx + 1) % RM.length);
-    setMode(Math.max(0, RM.findIndex(r => r.v === renderMode)));
+    /*  Il modo da cui si parte: quello lasciato l'ultima volta, se e' ancora
+     *  una voce del menu, altrimenti quello di fabbrica. Il confronto guarda
+     *  anche la pelle, perche' «Skin only» e «Skin + cells» sono lo stesso
+     *  `blob` e per indice si finirebbe sempre sulla prima delle due. */
+    let daRiprendere = null;
+    try { daRiprendere = JSON.parse(localStorage.getItem(RENDER_CHIAVE)); } catch (e) { }
+    let iPart = -1;
+    if (daRiprendere && typeof daRiprendere.modo === 'string')
+      iPart = RM.findIndex(r => r.v === daRiprendere.modo && !!r.pelle === !!daRiprendere.pelle);
+    if (iPart < 0) iPart = RM.findIndex(r => r.v === renderMode && r.pelle === skinX);
+    setMode(Math.max(0, iPart));
 
     const apriRender = on => {
       const p = document.getElementById('renderpanel'), b = document.getElementById('btnRender');
       p.classList.toggle('on', on);
+      if (on) pannelloInCima(p);
       b.classList.toggle('on', on);
     };
     document.getElementById('btnRender').onclick = () =>
@@ -20825,11 +20900,14 @@ const ui = {
     if (bskinX) bskinX.onclick = () => apriPannelloPelle(false);
     const bskinR = document.getElementById('skinReset');
     if (bskinR) bskinR.onclick = () => {
-      const m = pelleMat(), s0 = pelleIniziale.v;
-      if (s0) for (const par of PARAM_MAT) scriviParam(m, par, s0[par.k]);
-      pelleCoerente(m);
-      pelleMix = .8; uPelleScala.value = 3;
-      cambiaTexturaPelle('off');       // salva anche il resto
+      /*  Torna al PRESET, disegno compreso. Rimetteva i cursori a posto e poi
+       *  spegneva la texture con dei valori scritti a mano qui dentro: il
+       *  «ritorno di fabbrica» consegnava una pelle nuda che di fabbrica non
+       *  era mai stata, e il disegno bisognava riselezionarlo a mano. Ora c'e'
+       *  un posto solo che dice com'e' fatta la pelle di casa, ed e' lo stesso
+       *  che si applica all'avvio. */
+      applicaPresetPelle();
+      salvaPelle();
       costruisciPannelloPelle();
       world.log('Skin material back to factory values');
     };
@@ -20839,7 +20917,7 @@ const ui = {
       bsim.onclick = () => apriPannelloSim(!document.getElementById('simpanel').classList.contains('on'));
       document.getElementById('simClose').onclick = () => apriPannelloSim(false);
       document.getElementById('simReset').onclick = () => {
-        applicaCelleMax(CELLE_TARATURA);
+        applicaCelleMax(CELLE_DEFAULT);
         salvaSimulazione();
         costruisciPannelloSim();
         world.log(`<b>Simulation</b>: cap back to <b>${celleMax}</b> cells per creature`);
@@ -23490,6 +23568,7 @@ function apriPannelloAudio(on) {
   const p = document.getElementById('audiopanel');
   if (!p) return;
   p.classList.toggle('on', on);
+  if (on) pannelloInCima(p);
   const b = document.getElementById('btnAudio');
   if (b) b.classList.toggle('on', on);
   if (on) { costruisciPannelloAudio(); aggiornaInterruttoreAudio(); }
