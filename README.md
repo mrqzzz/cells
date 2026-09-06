@@ -1,5 +1,7 @@
 # CELLS
 
+LIVE HERE: [https://mrqzzz.github.io/cells/](https://mrqzzz.github.io/cells/)
+
 *A vivarium of cellular creatures — a real-time 3D simulation where every animal
 is built one cell at a time, behaves according to what its body can actually
 sense and do, and sings with a voice synthesised from its own genome.*
@@ -7,7 +9,6 @@ sense and do, and sings with a voice synthesised from its own genome.*
 Two files. `cells.html` and `game.js`. No build step, no bundler, no
 dependencies beyond three.js from a CDN. Open the page and the culture starts.
 
-Live here: [https://mrqzzz.github.io/cells/](https://mrqzzz.github.io/cells/)
 
 ---
 
