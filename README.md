@@ -6,8 +6,6 @@ LIVE HERE: [https://mrqzzz.github.io/cells/](https://mrqzzz.github.io/cells/)
 is built one cell at a time, behaves according to what its body can actually
 sense and do, and sings with a voice synthesised from its own genome.*
 
-Two files. `cells.html` and `game.js`. No build step, no bundler, no
-dependencies beyond three.js from a CDN. Open the page and the culture starts.
 
 
 ---
